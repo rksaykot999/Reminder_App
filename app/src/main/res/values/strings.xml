@@ -1,0 +1,17 @@
+<resources>
+    <string name="app_name">Reminder</string>
+    <string name="timer">TIMER</string>
+    <string name="calendar">CALENDAR</string>
+    <string name="history">HISTORY</string>
+    <string name="reset">RESET</string>
+    <string name="new_timer_voice">+ NEW TIMER (VOICE)</string>
+    <string name="events_today">EVENTS TODAY</string>
+    <string name="add_event">Add Event</string>
+    <string name="times_up">⏰ Time\'s Up!</string>
+    <string name="listening">Listening...</string>
+    <string name="event_added">Event added!</string>
+    <string name="five_min">5 MIN</string>
+    <string name="fifteen_min">15 MIN</string>
+    <string name="thirty_min">30 MIN</string>
+    <string name="sixty_min">60 MIN</string>
+</resources>
