@@ -136,11 +136,12 @@ fun TimerScreen(viewModel: TimerViewModel) {
 
         Spacer(modifier = Modifier.weight(1f))
 
-        // Main Control Cluster (Restart, Play/Pause)
+        // Main Control Cluster (Restart, Play/Pause, Stop)
         TimerControlCluster(
             isRunning = isRunning,
             onToggle = { if (isRunning) viewModel.pauseTimer() else viewModel.startTimer() },
-            onReset = { viewModel.resetTimer() }
+            onReset = { viewModel.resetTimer() },
+            onStop = { viewModel.stopTimer() }
         )
     }
 
@@ -365,7 +366,8 @@ fun VoiceButton(onListenClick: () -> Unit) {
 fun TimerControlCluster(
     isRunning: Boolean,
     onToggle: () -> Unit,
-    onReset: () -> Unit
+    onReset: () -> Unit,
+    onStop: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -384,10 +386,22 @@ fun TimerControlCluster(
             Icon(Icons.Default.RestartAlt, contentDescription = "Restart", tint = MaterialTheme.colorScheme.primary)
         }
 
-        Spacer(modifier = Modifier.width(32.dp))
+        Spacer(modifier = Modifier.width(24.dp))
 
         // Main Play/Pause
         LargePlayButton(isRunning = isRunning, onClick = onToggle)
+
+        Spacer(modifier = Modifier.width(24.dp))
+
+        // Stop Button
+        IconButton(
+            onClick = onStop,
+            modifier = Modifier
+                .size(48.dp)
+                .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.2f), CircleShape)
+        ) {
+            Icon(Icons.Default.Stop, contentDescription = "Stop", tint = MaterialTheme.colorScheme.error)
+        }
     }
 }
 

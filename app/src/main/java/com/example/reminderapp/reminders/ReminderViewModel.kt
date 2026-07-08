@@ -9,8 +9,12 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.reminderapp.data.Reminder
 import com.example.reminderapp.data.ReminderDao
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -19,8 +23,65 @@ class ReminderViewModel(
     private val reminderDao: ReminderDao
 ) : AndroidViewModel(application) {
 
-    val reminders: StateFlow<List<Reminder>> = reminderDao.getAllReminders()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    private val firestore = FirebaseFirestore.getInstance()
+    private val auth = FirebaseAuth.getInstance()
+
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery
+
+    private val _selectedCategory = MutableStateFlow("All")
+    val selectedCategory: StateFlow<String> = _selectedCategory
+
+    val reminders: StateFlow<List<Reminder>> = combine(
+        reminderDao.getAllReminders(),
+        _searchQuery,
+        _selectedCategory
+    ) { reminders, query, category ->
+        reminders.filter {
+            (category == "All" || it.category.equals(category, ignoreCase = true)) &&
+            (it.name.contains(query, ignoreCase = true) || it.description.contains(query, ignoreCase = true))
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    init {
+        syncFromCloud()
+    }
+
+    private fun syncFromCloud() {
+        val userId = auth.currentUser?.uid ?: return
+        firestore.collection("users").document(userId).collection("reminders")
+            .get()
+            .addOnSuccessListener { documents ->
+                viewModelScope.launch {
+                    for (document in documents) {
+                        val reminder = document.toObject(Reminder::class.java)
+                        reminderDao.insertReminder(reminder)
+                    }
+                }
+            }
+    }
+
+    private fun syncToCloud(reminder: Reminder) {
+        val userId = auth.currentUser?.uid ?: return
+        firestore.collection("users").document(userId).collection("reminders")
+            .document(reminder.id.toString())
+            .set(reminder)
+    }
+
+    private fun removeFromCloud(reminder: Reminder) {
+        val userId = auth.currentUser?.uid ?: return
+        firestore.collection("users").document(userId).collection("reminders")
+            .document(reminder.id.toString())
+            .delete()
+    }
+
+    fun setSearchQuery(query: String) {
+        _searchQuery.value = query
+    }
+
+    fun setCategory(category: String) {
+        _selectedCategory.value = category
+    }
 
     fun addReminder(name: String, description: String, category: String, time: String, timeInMillis: Long) {
         val reminder = Reminder(
@@ -35,6 +96,7 @@ class ReminderViewModel(
         viewModelScope.launch {
             reminderDao.insertReminder(reminder)
         }
+        syncToCloud(reminder)
         scheduleAlarm(reminder)
     }
 
@@ -51,6 +113,7 @@ class ReminderViewModel(
         viewModelScope.launch {
             reminderDao.updateReminder(updated)
         }
+        syncToCloud(updated)
         scheduleAlarm(updated)
     }
 
@@ -59,6 +122,7 @@ class ReminderViewModel(
         viewModelScope.launch {
             reminderDao.updateReminder(updated)
         }
+        syncToCloud(updated)
         if (checked) scheduleAlarm(updated) else cancelAlarm(updated)
     }
 
@@ -67,6 +131,7 @@ class ReminderViewModel(
         viewModelScope.launch {
             reminderDao.deleteReminder(reminder)
         }
+        removeFromCloud(reminder)
     }
 
     private fun scheduleAlarm(reminder: Reminder) {

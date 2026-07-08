@@ -1,24 +1,40 @@
 package com.example.reminderapp.reminders
 
 import android.app.TimePickerDialog
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil3.compose.AsyncImage
+import com.example.reminderapp.R
+import com.example.reminderapp.auth.AuthViewModel
 import com.example.reminderapp.data.AppDatabase
 import com.example.reminderapp.data.Reminder
 import java.util.Calendar
@@ -26,7 +42,9 @@ import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen() {
+fun HomeScreen(
+    authViewModel: AuthViewModel = viewModel()
+) {
     val context = LocalContext.current
     val database = remember { AppDatabase.getDatabase(context) }
     val viewModel: ReminderViewModel = viewModel(
@@ -37,6 +55,10 @@ fun HomeScreen() {
     )
 
     val reminders by viewModel.reminders.collectAsState()
+    val searchQuery by viewModel.searchQuery.collectAsState()
+    val selectedCategory by viewModel.selectedCategory.collectAsState()
+    val user by authViewModel.user.collectAsState()
+    
     var showSheet by remember { mutableStateOf(false) }
     var editingReminder by remember { mutableStateOf<Reminder?>(null) }
 
@@ -44,16 +66,24 @@ fun HomeScreen() {
         .filter { it.isChecked && it.timeInMillis > System.currentTimeMillis() }
         .minByOrNull { it.timeInMillis }
 
+    val categories = listOf("All", "Meeting", "Break", "Medicine", "General")
+
     Scaffold(
+        topBar = {
+            HomeTopBar(photoUrl = user?.photoUrl?.toString())
+        },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
+            FloatingActionButton(
                 onClick = {
                     editingReminder = null
                     showSheet = true
                 },
-                icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                text = { Text("Add Reminder") }
-            )
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = Color.Black,
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Add Reminder")
+            }
         }
     ) { innerPadding ->
         Column(
@@ -61,30 +91,58 @@ fun HomeScreen() {
                 .fillMaxSize()
                 .padding(innerPadding)
                 .background(MaterialTheme.colorScheme.background)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            NextTaskCard(nextTask)
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+                item {
+                    GreetingSection(name = user?.displayName ?: "User")
+                }
 
-            Text(
-                "All Reminders",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
+                item {
+                    SearchBar(searchQuery) { viewModel.setSearchQuery(it) }
+                }
 
-            if (reminders.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
+                item {
+                    StatsOverview(reminders)
+                }
+
+                item {
+                    NextTaskCard(nextTask)
+                }
+
+                item {
+                    CategoryFilters(categories, selectedCategory) { viewModel.setCategory(it) }
+                }
+
+                item {
                     Text(
-                        "No reminders yet.\nTap + to add your first one.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodyMedium
+                        "Recent Reminders",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
                     )
                 }
-            } else {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+
+                if (reminders.isEmpty()) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(200.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                if (searchQuery.isEmpty()) "No reminders yet.\nTap + to add one." else "No matching reminders found.",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodyMedium,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                        }
+                    }
+                } else {
                     items(reminders, key = { it.id }) { reminder ->
                         ReminderCard(
                             reminder = reminder,
@@ -96,8 +154,9 @@ fun HomeScreen() {
                             onDelete = { viewModel.deleteReminder(reminder) }
                         )
                     }
-                    item { Spacer(modifier = Modifier.height(72.dp)) }
                 }
+                
+                item { Spacer(modifier = Modifier.height(80.dp)) }
             }
         }
     }
@@ -120,39 +179,221 @@ fun HomeScreen() {
 }
 
 @Composable
-fun NextTaskCard(nextTask: Reminder?) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+fun HomeTopBar(photoUrl: String?) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .statusBarsPadding(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (photoUrl != null) {
+                AsyncImage(
+                    model = photoUrl,
+                    contentDescription = "Profile Photo",
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .border(1.dp, MaterialTheme.colorScheme.primary, CircleShape),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Image(
+                    painter = painterResource(id = R.drawable.reminder_logo),
+                    contentDescription = "Logo",
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .border(1.dp, MaterialTheme.colorScheme.primary, CircleShape),
+                    contentScale = ContentScale.Crop
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
             Text(
-                "UP NEXT",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = nextTask?.time ?: "-- : --",
-                style = MaterialTheme.typography.headlineMedium,
+                "ReminderApp",
+                style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Black,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
+                color = MaterialTheme.colorScheme.primary
             )
-            Text(
-                text = nextTask?.name ?: "No upcoming tasks",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
-            )
+        }
+        
+        IconButton(
+            onClick = { /* Notifications */ },
+            modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), CircleShape)
+        ) {
+            Icon(Icons.Default.Notifications, contentDescription = "Notifications")
         }
     }
 }
 
-private fun categoryColors(category: String): Pair<Color, Color> = when (category.lowercase()) {
-    "break" -> Color(0xFFFFE0C2) to Color(0xFF8A4B00)
-    "meeting" -> Color(0xFFCFE3FF) to Color(0xFF00458A)
-    "medicine" -> Color(0xFFC9F5D9) to Color(0xFF00702E)
-    else -> Color(0xFFE3D9F7) to Color(0xFF4B2E83)
+@Composable
+fun GreetingSection(name: String) {
+    Column {
+        Text(
+            "Hello, $name!",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+        Text(
+            "You have some tasks today.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+fun SearchBar(query: String, onQueryChange: (String) -> Unit) {
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        modifier = Modifier.fillMaxWidth(),
+        placeholder = { Text("Search your tasks...") },
+        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+        shape = RoundedCornerShape(16.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+            unfocusedBorderColor = Color.Transparent,
+            focusedBorderColor = MaterialTheme.colorScheme.primary
+        ),
+        singleLine = true
+    )
+}
+
+@Composable
+fun StatsOverview(reminders: List<Reminder>) {
+    val total = reminders.size
+    val completed = reminders.count { !it.isChecked } 
+    val pending = total - completed
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        StatCard(
+            title = "Completed",
+            count = completed.toString(),
+            color = Color(0xFF4CAF50),
+            modifier = Modifier.weight(1f)
+        )
+        StatCard(
+            title = "Pending",
+            count = pending.toString(),
+            color = Color(0xFFFF9800),
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+fun StatCard(title: String, count: String, color: Color, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.1f))
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            horizontalAlignment = Alignment.Start
+        ) {
+            Text(count, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black, color = color)
+            Text(title, style = MaterialTheme.typography.labelMedium, color = color.copy(alpha = 0.7f))
+        }
+    }
+}
+
+@Composable
+fun CategoryFilters(categories: List<String>, selected: String, onSelect: (String) -> Unit) {
+    LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(horizontal = 4.dp)
+    ) {
+        items(categories) { category ->
+            val isSelected = category == selected
+            Surface(
+                modifier = Modifier.clickable { onSelect(category) },
+                shape = RoundedCornerShape(12.dp),
+                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                border = if (isSelected) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            ) {
+                Text(
+                    text = category,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    color = if (isSelected) Color.Black else MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun NextTaskCard(nextTask: Reminder?) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
+    ) {
+        Box(
+            modifier = Modifier
+                .background(
+                    brush = Brush.horizontalGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.primary,
+                            MaterialTheme.colorScheme.tertiary
+                        )
+                    )
+                )
+                .padding(24.dp)
+        ) {
+            Column {
+                Text(
+                    "UP NEXT",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.Black.copy(alpha = 0.6f),
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = nextTask?.name ?: "No upcoming tasks",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Black,
+                            color = Color.Black
+                        )
+                        Text(
+                            text = nextTask?.time ?: "-- : --",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = Color.Black.copy(alpha = 0.8f)
+                        )
+                    }
+                    Icon(
+                        Icons.Default.Notifications,
+                        contentDescription = null,
+                        tint = Color.Black,
+                        modifier = Modifier.size(40.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun categoryColors(category: String): Color = when (category.lowercase()) {
+    "break" -> Color(0xFFFF9800)
+    "meeting" -> Color(0xFF2196F3)
+    "medicine" -> Color(0xFFE91E63)
+    else -> Color(0xFF9C27B0)
 }
 
 @Composable
@@ -162,41 +403,51 @@ fun ReminderCard(
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
-    val (bg, fg) = categoryColors(reminder.category)
+    val accentColor = categoryColors(reminder.category)
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp),
+                .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Checkbox(checked = reminder.isChecked, onCheckedChange = onCheckedChange)
-            Spacer(modifier = Modifier.width(4.dp))
+            Checkbox(
+                checked = !reminder.isChecked, 
+                onCheckedChange = { onCheckedChange(!it) },
+                colors = CheckboxDefaults.colors(checkedColor = accentColor)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    reminder.name, 
+                    fontWeight = FontWeight.Bold, 
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = if (!reminder.isChecked) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onSurface
+                )
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(reminder.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Surface(shape = RoundedCornerShape(8.dp), color = bg) {
-                        Text(
-                            reminder.category,
-                            color = fg,
-                            style = MaterialTheme.typography.labelSmall,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                        )
-                    }
+                    Icon(
+                        Icons.Default.Edit, 
+                        contentDescription = null, 
+                        modifier = Modifier.size(12.dp),
+                        tint = accentColor
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(reminder.category, color = accentColor, style = MaterialTheme.typography.labelSmall)
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(reminder.time, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                Text(reminder.time, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
-                Text(reminder.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            
             IconButton(onClick = onEdit) {
-                Icon(Icons.Default.Edit, contentDescription = "Edit")
+                Icon(Icons.Default.Edit, contentDescription = "Edit", modifier = Modifier.size(20.dp))
             }
             IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
             }
         }
     }
@@ -245,7 +496,7 @@ fun AddEditReminderSheet(
             OutlinedTextField(
                 value = category,
                 onValueChange = { category = it },
-                label = { Text("Category (General, Meeting, Break, Medicine...)") },
+                label = { Text("Category (Meeting, Break, Medicine...)") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -280,9 +531,10 @@ fun AddEditReminderSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp),
-                shape = RoundedCornerShape(14.dp)
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = Color.Black)
             ) {
-                Text(if (existing == null) "Save Reminder" else "Update Reminder")
+                Text(if (existing == null) "Save Reminder" else "Update Reminder", fontWeight = FontWeight.Bold)
             }
         }
     }

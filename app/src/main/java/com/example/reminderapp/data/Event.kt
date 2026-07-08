@@ -9,8 +9,8 @@ import java.util.UUID
 data class Event(
     @PrimaryKey
     val id: String = UUID.randomUUID().toString(),
-    val title: String,
-    val time: String,
+    val title: String = "",
+    val time: String = "",
     val location: String = "",
     val date: LocalDate = LocalDate.now(),
     val description: String = "",

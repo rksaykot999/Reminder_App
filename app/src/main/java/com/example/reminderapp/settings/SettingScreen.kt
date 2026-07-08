@@ -1,6 +1,8 @@
 package com.example.reminderapp.settings
 
+import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -19,211 +21,354 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import coil3.compose.AsyncImage
+import com.example.reminderapp.auth.AuthViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingScreen(
     isDarkMode: Boolean,
-    onDarkModeChange: (Boolean) -> Unit
+    onDarkModeChange: (Boolean) -> Unit,
+    onLogout: () -> Unit = {},
+    settingsViewModel: SettingsViewModel = viewModel(),
+    authViewModel: AuthViewModel = viewModel()
 ) {
+    val context = LocalContext.current
+    val lockType by settingsViewModel.lockType.collectAsState()
+    val user by authViewModel.user.collectAsState()
+    
     // State Control
     var isNotificationEnabled by remember { mutableStateOf(true) }
-    var isBiometricEnabled by remember { mutableStateOf(false) }
     var textScale by remember { mutableFloatStateOf(1.0f) }
     var showPrivacyDialog by remember { mutableStateOf(false) }
+    var showLockDialog by remember { mutableStateOf(false) }
+    var showSetLockValueDialog by remember { mutableStateOf(false) }
+    var pendingLockType by remember { mutableStateOf("") }
+    
     var selectedLanguage by remember { mutableStateOf("English") }
     var searchQuery by remember { mutableStateOf("") }
+    var showLogoutDialog by remember { mutableStateOf(false) }
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
-    run {
-        Scaffold(
-            modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-            topBar = {
-                LargeTopAppBar(
-                    title = {
-                        Text(
-                            text = "Settings",
-                            fontWeight = FontWeight.Black,
-                            fontSize = (28 * textScale).sp
-                        )
-                    },
-                    actions = {
-                        IconButton(onClick = { /* Help */ }) {
-                            Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = null)
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.background,
-                        scrolledContainerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)
-                    ),
-                    scrollBehavior = scrollBehavior
+    Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        topBar = {
+            LargeTopAppBar(
+                title = {
+                    Text(
+                        text = "Settings",
+                        fontWeight = FontWeight.Black,
+                        fontSize = (28 * textScale).sp
+                    )
+                },
+                actions = {
+                    IconButton(onClick = { Toast.makeText(context, "Help center is coming soon!", Toast.LENGTH_SHORT).show() }) {
+                        Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = null)
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)
+                ),
+                scrollBehavior = scrollBehavior
+            )
+        }
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .background(MaterialTheme.colorScheme.background)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
+        ) {
+            // Search Bar
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("Search settings...", fontSize = (14 * textScale).sp) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                shape = RoundedCornerShape(16.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                ),
+                singleLine = true
+            )
+
+            // 1. Profile Section
+            ProfileSection(
+                name = user?.displayName ?: "User",
+                email = user?.email ?: "No email linked",
+                photoUrl = user?.photoUrl?.toString(),
+                textScale = textScale,
+                onEditClick = { Toast.makeText(context, "Profile editing is coming soon!", Toast.LENGTH_SHORT).show() }
+            )
+
+            // 2. Personalization
+            SettingGroup(title = "Personalization", textScale = textScale) {
+                SettingClickableRow(
+                    icon = Icons.Default.Language,
+                    title = "App Language",
+                    subtitle = "Currently: $selectedLanguage",
+                    textScale = textScale,
+                    onClick = { 
+                        selectedLanguage = if (selectedLanguage == "English") "Bengali" else "English" 
+                        Toast.makeText(context, "Language changed to $selectedLanguage", Toast.LENGTH_SHORT).show()
+                    }
+                )
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+                SettingSwitchRow(
+                    icon = Icons.Default.Palette,
+                    title = "Dark Mode",
+                    subtitle = "Applies across the whole app",
+                    checked = isDarkMode,
+                    textScale = textScale,
+                    onCheckedChange = onDarkModeChange
+                )
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+                // Text Size Slider
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.TextFields, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text("Adjust Font Size", fontWeight = FontWeight.SemiBold, fontSize = (15 * textScale).sp)
+                    }
+                    Slider(
+                        value = textScale,
+                        onValueChange = { textScale = it },
+                        valueRange = 0.8f..1.4f,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+            }
+
+            // 3. Privacy & Security
+            SettingGroup(title = "Privacy & Security", textScale = textScale) {
+                SettingClickableRow(
+                    icon = Icons.Default.Lock,
+                    title = "Lock System",
+                    subtitle = "Current: ${if (lockType == "NONE") "Disabled" else lockType}",
+                    textScale = textScale,
+                    onClick = { showLockDialog = true }
+                )
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+                SettingClickableRow(
+                    icon = Icons.Default.GppGood,
+                    title = "Security Checkup",
+                    subtitle = "Last scan: 2 hours ago",
+                    textScale = textScale,
+                    onClick = { Toast.makeText(context, "Scanning for threats...", Toast.LENGTH_SHORT).show() }
                 )
             }
-        ) { paddingValues ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .background(MaterialTheme.colorScheme.background)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(24.dp)
-            ) {
-                // Search Bar
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("Search settings...", fontSize = (14 * textScale).sp) },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                    shape = RoundedCornerShape(16.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
-                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                    ),
-                    singleLine = true
-                )
 
-                // 1. Profile Section with Gradient
-                ProfileSection(
-                    name = "MD SAIF",
-                    email = "mohammadsaif12234@gmail.com",
+            // 4. Data & Communication
+            SettingGroup(title = "Data & Communication", textScale = textScale) {
+                SettingSwitchRow(
+                    icon = Icons.Default.NotificationsActive,
+                    title = "Push Notifications",
+                    subtitle = "Alerts for messages and updates",
+                    checked = isNotificationEnabled,
                     textScale = textScale,
-                    onEditClick = { /* Edit logic */ }
+                    onCheckedChange = { 
+                        isNotificationEnabled = it 
+                        Toast.makeText(context, "Notifications ${if(it) "enabled" else "disabled"}", Toast.LENGTH_SHORT).show()
+                    }
                 )
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+                SettingClickableRow(
+                    icon = Icons.Default.Storage,
+                    title = "Storage & Data",
+                    subtitle = "340 MB used / 1.2 GB free",
+                    textScale = textScale,
+                    onClick = { Toast.makeText(context, "Clearing cache...", Toast.LENGTH_SHORT).show() }
+                )
+            }
 
-                // 2. Personalization
-                SettingGroup(title = "Personalization", textScale = textScale) {
-                    SettingClickableRow(
-                        icon = Icons.Default.Language,
-                        title = "App Language",
-                        subtitle = "Currently: $selectedLanguage",
-                        textScale = textScale,
-                        onClick = { 
-                            selectedLanguage = if (selectedLanguage == "English") "Bengali" else "English" 
-                        }
-                    )
-                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
-                    SettingSwitchRow(
-                        icon = Icons.Default.Palette,
-                        title = "Dark Mode",
-                        subtitle = "Applies across the whole app",
-                        checked = isDarkMode,
-                        textScale = textScale,
-                        onCheckedChange = onDarkModeChange
-                    )
-                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
-                    // Text Size Slider
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.TextFields, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text("Adjust Font Size", fontWeight = FontWeight.SemiBold, fontSize = (15 * textScale).sp)
-                        }
-                        Slider(
-                            value = textScale,
-                            onValueChange = { textScale = it },
-                            valueRange = 0.8f..1.4f,
-                            modifier = Modifier.padding(top = 4.dp)
-                        )
+            // 5. Support
+            SettingGroup(title = "Support", textScale = textScale) {
+                SettingClickableRow(
+                    icon = Icons.AutoMirrored.Filled.HelpCenter,
+                    title = "Help Center",
+                    subtitle = "Documentation and support",
+                    textScale = textScale,
+                    onClick = { Toast.makeText(context, "Redirecting to help center...", Toast.LENGTH_SHORT).show() }
+                )
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+                SettingClickableRow(
+                    icon = Icons.Default.Policy,
+                    title = "Privacy Policy",
+                    subtitle = "Legal and data usage terms",
+                    textScale = textScale,
+                    onClick = { showPrivacyDialog = true }
+                )
+            }
+
+            // 6. Action Buttons
+            LogOutButton(textScale = textScale, onClick = { showLogoutDialog = true })
+
+            // 7. Footer
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "Setting Page v3.0.0",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = (13 * textScale).sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                )
+                Text(
+                    text = "Made with ❤️ for MD SAIF",
+                    fontSize = (11 * textScale).sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                )
+            }
+        }
+
+        if (showPrivacyDialog) {
+            PrivacyDialog(textScale = textScale, onDismiss = { showPrivacyDialog = false })
+        }
+
+        if (showLogoutDialog) {
+            AlertDialog(
+                onDismissRequest = { showLogoutDialog = false },
+                title = { Text("Logout Account", fontWeight = FontWeight.Bold) },
+                text = { Text("Are you sure you want to log out from your account?") },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showLogoutDialog = false
+                            authViewModel.signOut(context) {
+                                onLogout()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("Logout", color = Color.White)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showLogoutDialog = false }) {
+                        Text("Cancel")
                     }
                 }
+            )
+        }
 
-                // 3. Privacy & Security
-                SettingGroup(title = "Privacy & Security", textScale = textScale) {
-                    SettingSwitchRow(
-                        icon = Icons.Default.Fingerprint,
-                        title = "Biometric Lock",
-                        subtitle = "Secure access with Fingerprint/FaceID",
-                        checked = isBiometricEnabled,
-                        textScale = textScale,
-                        onCheckedChange = { isBiometricEnabled = it }
-                    )
-                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
-                    SettingClickableRow(
-                        icon = Icons.Default.GppGood,
-                        title = "Security Checkup",
-                        subtitle = "Last scan: 2 hours ago",
-                        textScale = textScale,
-                        onClick = { /* Security Check */ }
-                    )
-                }
+        if (showLockDialog) {
+            LockSystemDialog(
+                currentType = lockType,
+                onTypeSelected = { type ->
+                    if (type == "NONE") {
+                        settingsViewModel.setLockType("NONE")
+                        showLockDialog = false
+                    } else {
+                        pendingLockType = type
+                        showLockDialog = false
+                        showSetLockValueDialog = true
+                    }
+                },
+                onDismiss = { showLockDialog = false }
+            )
+        }
 
-                // 4. Data & Communication
-                SettingGroup(title = "Data & Communication", textScale = textScale) {
-                    SettingSwitchRow(
-                        icon = Icons.Default.NotificationsActive,
-                        title = "Push Notifications",
-                        subtitle = "Alerts for messages and updates",
-                        checked = isNotificationEnabled,
-                        textScale = textScale,
-                        onCheckedChange = { isNotificationEnabled = it }
-                    )
-                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
-                    SettingClickableRow(
-                        icon = Icons.Default.Storage,
-                        title = "Storage & Data",
-                        subtitle = "340 MB used / 1.2 GB free",
-                        textScale = textScale,
-                        onClick = { /* Storage manager */ }
-                    )
-                }
-
-                // 5. Support
-                SettingGroup(title = "Support", textScale = textScale) {
-                    SettingClickableRow(
-                        icon = Icons.AutoMirrored.Filled.HelpCenter,
-                        title = "Help Center",
-                        subtitle = "Documentation and support",
-                        textScale = textScale,
-                        onClick = { /* Help */ }
-                    )
-                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
-                    SettingClickableRow(
-                        icon = Icons.Default.Policy,
-                        title = "Privacy Policy",
-                        subtitle = "Legal and data usage terms",
-                        textScale = textScale,
-                        onClick = { showPrivacyDialog = true }
-                    )
-                }
-
-                // 6. Action Buttons
-                LogOutButton(textScale = textScale, onClick = { /* Logout */ })
-
-                // 7. Footer
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 32.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "Setting Page v3.0.0",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = (13 * textScale).sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
-                    )
-                    Text(
-                        text = "Made with ❤️ for MD SAIF",
-                        fontSize = (11 * textScale).sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                    )
-                }
-            }
-
-            if (showPrivacyDialog) {
-                PrivacyDialog(textScale = textScale, onDismiss = { showPrivacyDialog = false })
-            }
+        if (showSetLockValueDialog) {
+            SetLockValueDialog(
+                type = pendingLockType,
+                onSave = { value ->
+                    settingsViewModel.saveLockValue(value)
+                    settingsViewModel.setLockType(pendingLockType)
+                    showSetLockValueDialog = false
+                    Toast.makeText(context, "$pendingLockType lock enabled", Toast.LENGTH_SHORT).show()
+                },
+                onDismiss = { showSetLockValueDialog = false }
+            )
         }
     }
 }
 
 @Composable
-fun ProfileSection(name: String, email: String, textScale: Float, onEditClick: () -> Unit) {
+fun SetLockValueDialog(type: String, onSave: (String) -> Unit, onDismiss: () -> Unit) {
+    var value by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Set $type") },
+        text = {
+            OutlinedTextField(
+                value = value,
+                onValueChange = { value = it },
+                label = { Text("Enter $type") },
+                visualTransformation = PasswordVisualTransformation(),
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = MaterialTheme.colorScheme.onBackground,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onBackground
+                )
+            )
+        },
+        confirmButton = {
+            Button(onClick = { if (value.isNotBlank()) onSave(value) }) { Text("Save") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+@Composable
+fun LockSystemDialog(
+    currentType: String,
+    onTypeSelected: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Select Lock Type", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                LockTypeItem("NONE", currentType == "NONE", onTypeSelected)
+                LockTypeItem("PIN", currentType == "PIN", onTypeSelected)
+                LockTypeItem("PATTERN", currentType == "PATTERN", onTypeSelected)
+                LockTypeItem("PASSWORD", currentType == "PASSWORD", onTypeSelected)
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+@Composable
+fun LockTypeItem(type: String, isSelected: Boolean, onClick: (String) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick(type) }
+            .padding(vertical = 12.dp, horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(type, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+        if (isSelected) {
+            Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+        }
+    }
+}
+
+@Composable
+fun ProfileSection(name: String, email: String, photoUrl: String?, textScale: Float, onEditClick: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(28.dp),
@@ -244,19 +389,31 @@ fun ProfileSection(name: String, email: String, textScale: Float, onEditClick: (
                 .padding(24.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(72.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = name.first().toString(),
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        fontSize = (32 * textScale).sp,
-                        fontWeight = FontWeight.Black
+                if (photoUrl != null) {
+                    AsyncImage(
+                        model = photoUrl,
+                        contentDescription = "Profile Photo",
+                        modifier = Modifier
+                            .size(72.dp)
+                            .clip(CircleShape)
+                            .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape),
+                        contentScale = ContentScale.Crop
                     )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(72.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (name.isNotEmpty()) name.first().toString() else "?",
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            fontSize = (32 * textScale).sp,
+                            fontWeight = FontWeight.Black
+                        )
+                    }
                 }
                 Spacer(modifier = Modifier.width(20.dp))
                 Column(modifier = Modifier.weight(1f)) {

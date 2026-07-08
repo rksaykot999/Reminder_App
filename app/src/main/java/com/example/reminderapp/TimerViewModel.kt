@@ -8,6 +8,8 @@ import com.example.reminderapp.data.EventDao
 import com.example.reminderapp.data.HistoryDao
 import com.example.reminderapp.data.HistoryItem
 import com.example.reminderapp.data.HistoryType
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
@@ -20,6 +22,13 @@ class TimerViewModel(
     private val eventDao: EventDao,
     private val historyDao: HistoryDao
 ) : ViewModel() {
+
+    private val firestore: FirebaseFirestore? by lazy {
+        try { FirebaseFirestore.getInstance() } catch (e: Exception) { null }
+    }
+    private val auth: FirebaseAuth? by lazy {
+        try { FirebaseAuth.getInstance() } catch (e: Exception) { null }
+    }
 
     // --- Timer State ---
     private val _remainingTime = MutableStateFlow(930000L) // 15:30 default
@@ -43,6 +52,59 @@ class TimerViewModel(
 
     private var timerJob: Job? = null
 
+    init {
+        syncFromCloud()
+    }
+
+    private fun syncFromCloud() {
+        val authInstance = auth ?: return
+        val firestoreInstance = firestore ?: return
+        val userId = authInstance.currentUser?.uid ?: return
+        
+        // Sync Events
+        firestoreInstance.collection("users").document(userId).collection("events")
+            .get()
+            .addOnSuccessListener { docs ->
+                viewModelScope.launch {
+                    for (doc in docs) {
+                        val event = doc.toObject(Event::class.java)
+                        eventDao.insertEvent(event)
+                    }
+                }
+            }
+        // Sync History
+        firestoreInstance.collection("users").document(userId).collection("history")
+            .get()
+            .addOnSuccessListener { docs ->
+                viewModelScope.launch {
+                    for (doc in docs) {
+                        val item = doc.toObject(HistoryItem::class.java)
+                        historyDao.insertHistory(item)
+                    }
+                }
+            }
+    }
+
+    private fun syncEventToCloud(event: Event) {
+        val authInstance = auth ?: return
+        val firestoreInstance = firestore ?: return
+        val userId = authInstance.currentUser?.uid ?: return
+        
+        firestoreInstance.collection("users").document(userId).collection("events")
+            .document(event.id)
+            .set(event)
+    }
+
+    private fun syncHistoryToCloud(item: HistoryItem) {
+        val authInstance = auth ?: return
+        val firestoreInstance = firestore ?: return
+        val userId = authInstance.currentUser?.uid ?: return
+        
+        firestoreInstance.collection("users").document(userId).collection("history")
+            .document(item.id.toString())
+            .set(item)
+    }
+
     fun startTimer() {
         if (_isRunning.value || _remainingTime.value <= 0) return
         _isRunning.value = true
@@ -64,6 +126,11 @@ class TimerViewModel(
     fun pauseTimer() {
         timerJob?.cancel()
         _isRunning.value = false
+    }
+
+    fun stopTimer() {
+        pauseTimer()
+        _remainingTime.value = 0
     }
 
     fun resetTimer() {
@@ -115,8 +182,10 @@ class TimerViewModel(
 
     fun addEvent(event: Event) {
         val date = _selectedDate.value
+        val newEvent = event.copy(date = date)
         viewModelScope.launch {
-            eventDao.insertEvent(event.copy(date = date))
+            eventDao.insertEvent(newEvent)
+            syncEventToCloud(newEvent)
             // Log event creation to history
             logHistory("Created: ${event.title}", HistoryType.CALENDAR, date)
         }
@@ -126,6 +195,7 @@ class TimerViewModel(
         viewModelScope.launch {
             val updatedEvent = event.copy(isDone = !event.isDone)
             eventDao.updateEvent(updatedEvent)
+            syncEventToCloud(updatedEvent)
             val status = if (updatedEvent.isDone) "Completed" else "Reopened"
             logHistory("$status: ${updatedEvent.title}", HistoryType.CALENDAR, updatedEvent.date)
         }
@@ -134,6 +204,13 @@ class TimerViewModel(
     fun deleteEvent(event: Event) {
         viewModelScope.launch {
             eventDao.deleteEvent(event)
+            val authInstance = auth ?: return@launch
+            val firestoreInstance = firestore ?: return@launch
+            val userId = authInstance.currentUser?.uid ?: return@launch
+            
+            firestoreInstance.collection("users").document(userId).collection("events")
+                .document(event.id)
+                .delete()
             logHistory("Deleted: ${event.title}", HistoryType.CALENDAR, event.date)
         }
     }
@@ -141,6 +218,13 @@ class TimerViewModel(
     fun deleteHistoryItem(historyItem: HistoryItem) {
         viewModelScope.launch {
             historyDao.deleteHistory(historyItem)
+            val authInstance = auth ?: return@launch
+            val firestoreInstance = firestore ?: return@launch
+            val userId = authInstance.currentUser?.uid ?: return@launch
+            
+            firestoreInstance.collection("users").document(userId).collection("history")
+                .document(historyItem.id.toString())
+                .delete()
         }
     }
 
@@ -151,7 +235,9 @@ class TimerViewModel(
     fun logHistory(message: String, type: HistoryType, date: LocalDate = LocalDate.now()) {
         viewModelScope.launch {
             val timestamp = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date())
-            historyDao.insertHistory(HistoryItem(message = message, timestamp = timestamp, type = type, date = date))
+            val item = HistoryItem(message = message, timestamp = timestamp, type = type, date = date)
+            historyDao.insertHistory(item)
+            syncHistoryToCloud(item)
         }
     }
 

@@ -13,8 +13,8 @@ enum class HistoryType {
 data class HistoryItem(
     @PrimaryKey
     val id: String = UUID.randomUUID().toString(),
-    val message: String,
-    val timestamp: String,
-    val type: HistoryType,
+    val message: String = "",
+    val timestamp: String = "",
+    val type: HistoryType = HistoryType.TIMER,
     val date: LocalDate = LocalDate.now()
 )

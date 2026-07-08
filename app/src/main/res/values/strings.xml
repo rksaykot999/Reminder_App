@@ -14,4 +14,6 @@
     <string name="fifteen_min">15 MIN</string>
     <string name="thirty_min">30 MIN</string>
     <string name="sixty_min">60 MIN</string>
+    <!-- Replace the value below with your Web Client ID from Firebase Console -->
+    <string name="default_web_client_id">1080702066417-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com</string>
 </resources>
