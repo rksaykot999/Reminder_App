@@ -6,6 +6,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -78,8 +79,8 @@ fun HomeScreen(
                     editingReminder = null
                     showSheet = true
                 },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = Color.Black,
+                containerColor = MaterialTheme.colorScheme.onSurface,
+                contentColor = MaterialTheme.colorScheme.surface,
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Add Reminder")
@@ -215,15 +216,15 @@ fun HomeTopBar(photoUrl: String?) {
                 "ReminderApp",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Black,
-                color = MaterialTheme.colorScheme.primary
+                color = MaterialTheme.colorScheme.onSurface
             )
         }
         
         IconButton(
             onClick = { /* Notifications */ },
-            modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), CircleShape)
+            modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
         ) {
-            Icon(Icons.Default.Notifications, contentDescription = "Notifications")
+            Icon(Icons.Default.Notifications, contentDescription = "Notifications", tint = MaterialTheme.colorScheme.onSurface)
         }
     }
 }
@@ -292,16 +293,16 @@ fun StatsOverview(reminders: List<Reminder>) {
 @Composable
 fun StatCard(title: String, count: String, color: Color, modifier: Modifier = Modifier) {
     Card(
-        modifier = modifier,
+        modifier = modifier.border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(20.dp)),
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.1f))
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
             horizontalAlignment = Alignment.Start
         ) {
-            Text(count, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black, color = color)
-            Text(title, style = MaterialTheme.typography.labelMedium, color = color.copy(alpha = 0.7f))
+            Text(count, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface)
+            Text(title, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -317,13 +318,13 @@ fun CategoryFilters(categories: List<String>, selected: String, onSelect: (Strin
             Surface(
                 modifier = Modifier.clickable { onSelect(category) },
                 shape = RoundedCornerShape(12.dp),
-                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                border = if (isSelected) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                color = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
             ) {
                 Text(
                     text = category,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    color = if (isSelected) Color.Black else MaterialTheme.colorScheme.onSurface,
+                    color = if (isSelected) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.onSurface,
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                 )
@@ -335,27 +336,18 @@ fun CategoryFilters(categories: List<String>, selected: String, onSelect: (Strin
 @Composable
 fun NextTaskCard(nextTask: Reminder?) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(24.dp)),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Box(
-            modifier = Modifier
-                .background(
-                    brush = Brush.horizontalGradient(
-                        colors = listOf(
-                            MaterialTheme.colorScheme.primary,
-                            MaterialTheme.colorScheme.tertiary
-                        )
-                    )
-                )
-                .padding(24.dp)
+            modifier = Modifier.padding(24.dp)
         ) {
             Column {
                 Text(
                     "UP NEXT",
                     style = MaterialTheme.typography.labelSmall,
-                    color = Color.Black.copy(alpha = 0.6f),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(8.dp))
@@ -369,18 +361,18 @@ fun NextTaskCard(nextTask: Reminder?) {
                             text = nextTask?.name ?: "No upcoming tasks",
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Black,
-                            color = Color.Black
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
                             text = nextTask?.time ?: "-- : --",
                             style = MaterialTheme.typography.bodyLarge,
-                            color = Color.Black.copy(alpha = 0.8f)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     Icon(
                         Icons.Default.Notifications,
                         contentDescription = null,
-                        tint = Color.Black,
+                        tint = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.size(40.dp)
                     )
                 }
@@ -389,11 +381,11 @@ fun NextTaskCard(nextTask: Reminder?) {
     }
 }
 
-private fun categoryColors(category: String): Color = when (category.lowercase()) {
-    "break" -> Color(0xFFFF9800)
-    "meeting" -> Color(0xFF2196F3)
-    "medicine" -> Color(0xFFE91E63)
-    else -> Color(0xFF9C27B0)
+private fun categoryColors(category: String, isDarkMode: Boolean): Color = when (category.lowercase()) {
+    "break" -> if (isDarkMode) Color.White else Color.Black
+    "meeting" -> if (isDarkMode) Color.White.copy(0.8f) else Color.Black.copy(0.8f)
+    "medicine" -> if (isDarkMode) Color.White.copy(0.6f) else Color.Black.copy(0.6f)
+    else -> if (isDarkMode) Color.White else Color.Black
 }
 
 @Composable
@@ -403,12 +395,13 @@ fun ReminderCard(
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
-    val accentColor = categoryColors(reminder.category)
+    val isDarkMode = isSystemInDarkTheme()
+    val accentColor = categoryColors(reminder.category, isDarkMode)
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
     ) {
         Row(
             modifier = Modifier

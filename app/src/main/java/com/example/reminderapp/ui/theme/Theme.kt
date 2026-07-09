@@ -10,35 +10,42 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 private val DarkColorScheme = darkColorScheme(
-    primary = NeonGreen,
-    secondary = NeonGreenBright,
-    tertiary = TealAccent,
+    primary = Color.White,
+    secondary = Color(0xFFB0B0B0), // Light Gray
+    tertiary = Color(0xFF808080),  // Medium Gray
     background = DarkBackground,
-    surface = DarkBackground,
-    onPrimary = DarkBackground,
-    onSecondary = DarkBackground,
-    onTertiary = TextPrimaryDark,
-    onBackground = TextPrimaryDark,
-    onSurface = TextPrimaryDark
+    surface = Color(0xFF121212),
+    onPrimary = Color.Black,
+    onSecondary = Color.Black,
+    onTertiary = Color.White,
+    onBackground = Color.White,
+    onSurface = Color.White,
+    surfaceVariant = Color(0xFF1E1E1E),
+    onSurfaceVariant = Color(0xFFB0B0B0),
+    outline = Color(0xFF333333)
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = TealAccent,
-    secondary = MintAccent,
-    tertiary = NeonGreen,
+    primary = Color.Black,
+    secondary = Color(0xFF404040), // Dark Gray
+    tertiary = Color(0xFF707070),  // Gray
     background = LightBackground,
-    surface = LightBackground,
-    onPrimary = LightBackground,
-    onSecondary = TextPrimaryLight,
-    onTertiary = TextPrimaryLight,
-    onBackground = TextPrimaryLight,
-    onSurface = TextPrimaryLight
+    surface = Color(0xFFF9F9F9),
+    onPrimary = Color.White,
+    onSecondary = Color.White,
+    onTertiary = Color.Black,
+    onBackground = Color.Black,
+    onSurface = Color.Black,
+    surfaceVariant = Color(0xFFF0F0F0),
+    onSurfaceVariant = Color(0xFF606060),
+    outline = Color(0xFFE0E0E0)
 )
 
 @Composable

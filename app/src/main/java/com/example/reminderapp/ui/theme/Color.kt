@@ -2,14 +2,12 @@ package com.example.reminderapp.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val DarkBackground = Color(0xFF1E222B)
-val NeonGreen = Color(0xFF00FFCC)
-val NeonGreenBright = Color(0xFF39FF14)
-val TealAccent = Color(0xFF008080)
-
-val LightBackground = Color(0xFFF5F7FA)
-val SoftGray = Color(0xFFE0E0E0)
-val MintAccent = Color(0xFF98FF98)
+val DarkBackground = Color(0xFF000000) // Pure Black
+val LightBackground = Color(0xFFFFFFFF) // Pure White
+val SurfaceDark = Color(0xFF121212) // Near Black Surface
+val SurfaceLight = Color(0xFFF5F5F5) // Very Light Gray Surface
 val TextPrimaryDark = Color(0xFFFFFFFF)
-val TextPrimaryLight = Color(0xFF2D2D2D)
-val TextSecondary = Color(0xFF9EA3AE)
+val TextSecondaryDark = Color(0xFFB0B0B0)
+val TextPrimaryLight = Color(0xFF000000)
+val TextSecondaryLight = Color(0xFF606060)
+val AccentGray = Color(0xFF404040)

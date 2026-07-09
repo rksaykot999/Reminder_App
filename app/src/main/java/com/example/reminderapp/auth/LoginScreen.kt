@@ -11,6 +11,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Visibility
@@ -163,8 +164,8 @@ fun LoginScreen(
                 shape = RoundedCornerShape(16.dp),
                 enabled = !isLoading && email.isNotBlank() && password.isNotBlank(),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = Color.Black
+                    containerColor = MaterialTheme.colorScheme.onSurface,
+                    contentColor = MaterialTheme.colorScheme.surface
                 )
             ) {
                 if (isLoading) {
@@ -211,7 +212,16 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(24.dp))
             
             TextButton(onClick = onNavigateToSignUp) {
-                Text("Don't have an account? Sign Up", color = MaterialTheme.colorScheme.primary)
+                Text("Don't have an account? Sign Up", color = MaterialTheme.colorScheme.onSurface)
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            TextButton(onClick = { viewModel.continueAsGuest(onLoginSuccess) }) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Continue without login", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(16.dp).padding(start = 4.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
             
             Spacer(modifier = Modifier.height(40.dp))

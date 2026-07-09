@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
 import com.example.reminderapp.auth.AuthViewModel
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -37,12 +38,18 @@ fun SettingScreen(
     isDarkMode: Boolean,
     onDarkModeChange: (Boolean) -> Unit,
     onLogout: () -> Unit = {},
+    onNavigateToProfile: () -> Unit = {},
     settingsViewModel: SettingsViewModel = viewModel(),
     authViewModel: AuthViewModel = viewModel()
 ) {
     val context = LocalContext.current
     val lockType by settingsViewModel.lockType.collectAsState()
     val user by authViewModel.user.collectAsState()
+    val isGuest by authViewModel.isGuest.collectAsState()
+    val lastScanTime by settingsViewModel.lastScanTime.collectAsState()
+    val isScanning by settingsViewModel.isScanning.collectAsState()
+    val cacheSize by settingsViewModel.cacheSize.collectAsState()
+    val scope = rememberCoroutineScope()
     
     // State Control
     var isNotificationEnabled by remember { mutableStateOf(true) }
@@ -55,6 +62,7 @@ fun SettingScreen(
     var selectedLanguage by remember { mutableStateOf("English") }
     var searchQuery by remember { mutableStateOf("") }
     var showLogoutDialog by remember { mutableStateOf(false) }
+    var showEditProfileDialog by remember { mutableStateOf(false) }
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
@@ -109,11 +117,13 @@ fun SettingScreen(
 
             // 1. Profile Section
             ProfileSection(
-                name = user?.displayName ?: "User",
-                email = user?.email ?: "No email linked",
+                name = if (isGuest) "Guest User" else (user?.displayName ?: "User"),
+                email = if (isGuest) "Limited access" else (user?.email ?: "No email linked"),
                 photoUrl = user?.photoUrl?.toString(),
                 textScale = textScale,
-                onEditClick = { Toast.makeText(context, "Profile editing is coming soon!", Toast.LENGTH_SHORT).show() }
+                isGuest = isGuest,
+                isDarkMode = isDarkMode,
+                onEditClick = if (isGuest) onLogout else onNavigateToProfile
             )
 
             // 2. Personalization
@@ -167,9 +177,19 @@ fun SettingScreen(
                 SettingClickableRow(
                     icon = Icons.Default.GppGood,
                     title = "Security Checkup",
-                    subtitle = "Last scan: 2 hours ago",
+                    subtitle = if (isScanning) "Scanning for threats..." else "Last scan: $lastScanTime",
                     textScale = textScale,
-                    onClick = { Toast.makeText(context, "Scanning for threats...", Toast.LENGTH_SHORT).show() }
+                    trailingContent = if (isScanning) {
+                        { CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp) }
+                    } else null,
+                    onClick = { 
+                        if (!isScanning) {
+                            scope.launch {
+                                settingsViewModel.performSecurityScan()
+                                Toast.makeText(context, "Scan complete: No threats found", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
                 )
             }
 
@@ -188,11 +208,14 @@ fun SettingScreen(
                 )
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
                 SettingClickableRow(
-                    icon = Icons.Default.Storage,
-                    title = "Storage & Data",
-                    subtitle = "340 MB used / 1.2 GB free",
+                    icon = Icons.Default.DeleteSweep,
+                    title = "Clear Cache",
+                    subtitle = "$cacheSize used",
                     textScale = textScale,
-                    onClick = { Toast.makeText(context, "Clearing cache...", Toast.LENGTH_SHORT).show() }
+                    onClick = { 
+                        settingsViewModel.clearAppCache()
+                        Toast.makeText(context, "Cache cleared successfully", Toast.LENGTH_SHORT).show()
+                    }
                 )
             }
 
@@ -217,24 +240,6 @@ fun SettingScreen(
 
             // 6. Action Buttons
             LogOutButton(textScale = textScale, onClick = { showLogoutDialog = true })
-
-            // 7. Footer
-            Column(
-                modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = "Setting Page v3.0.0",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = (13 * textScale).sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
-                )
-                Text(
-                    text = "Made with ❤️ for MD SAIF",
-                    fontSize = (11 * textScale).sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                )
-            }
         }
 
         if (showPrivacyDialog) {
@@ -368,24 +373,16 @@ fun LockTypeItem(type: String, isSelected: Boolean, onClick: (String) -> Unit) {
 }
 
 @Composable
-fun ProfileSection(name: String, email: String, photoUrl: String?, textScale: Float, onEditClick: () -> Unit) {
+fun ProfileSection(name: String, email: String, photoUrl: String?, textScale: Float, isGuest: Boolean = false, isDarkMode: Boolean, onEditClick: () -> Unit) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(28.dp)),
         shape = RoundedCornerShape(28.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(
-                    brush = Brush.horizontalGradient(
-                        colors = listOf(
-                            MaterialTheme.colorScheme.primaryContainer,
-                            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
-                        )
-                    )
-                )
                 .padding(24.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -396,7 +393,7 @@ fun ProfileSection(name: String, email: String, photoUrl: String?, textScale: Fl
                         modifier = Modifier
                             .size(72.dp)
                             .clip(CircleShape)
-                            .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape),
+                            .border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape),
                         contentScale = ContentScale.Crop
                     )
                 } else {
@@ -404,12 +401,12 @@ fun ProfileSection(name: String, email: String, photoUrl: String?, textScale: Fl
                         modifier = Modifier
                             .size(72.dp)
                             .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary),
+                            .background(MaterialTheme.colorScheme.onSurface.copy(0.1f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = if (name.isNotEmpty()) name.first().toString() else "?",
-                            color = MaterialTheme.colorScheme.onPrimary,
+                            color = MaterialTheme.colorScheme.onSurface,
                             fontSize = (32 * textScale).sp,
                             fontWeight = FontWeight.Black
                         )
@@ -422,33 +419,33 @@ fun ProfileSection(name: String, email: String, photoUrl: String?, textScale: Fl
                             text = name, 
                             fontWeight = FontWeight.ExtraBold, 
                             fontSize = (22 * textScale).sp, 
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Icon(
                             Icons.Default.Verified, 
                             contentDescription = null, 
                             modifier = Modifier.size(18.dp),
-                            tint = MaterialTheme.colorScheme.primary
+                            tint = if (isDarkMode) Color.White else Color.Black
                         )
                     }
                     Text(
                         text = email, 
                         fontSize = (14 * textScale).sp, 
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 Surface(
                     onClick = onEditClick,
                     shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.size(40.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
-                            imageVector = Icons.Default.Edit,
-                            contentDescription = "Edit",
-                            tint = MaterialTheme.colorScheme.onPrimary,
+                            imageVector = if (isGuest) Icons.Default.Login else Icons.Default.Edit,
+                            contentDescription = if (isGuest) "Login" else "Edit",
+                            tint = MaterialTheme.colorScheme.surface,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -465,15 +462,15 @@ fun SettingGroup(title: String, textScale: Float, content: @Composable ColumnSco
             text = title.uppercase(),
             fontSize = (12 * textScale).sp,
             fontWeight = FontWeight.Black,
-            color = MaterialTheme.colorScheme.primary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(start = 8.dp, bottom = 10.dp),
             letterSpacing = 1.sp
         )
         Card(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(24.dp)),
             shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                containerColor = MaterialTheme.colorScheme.surface
             ),
             content = content
         )
@@ -499,11 +496,11 @@ fun SettingSwitchRow(
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
             Surface(
                 shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
                 modifier = Modifier.size(42.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                    Icon(icon, null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(22.dp))
                 }
             }
             Spacer(modifier = Modifier.width(16.dp))
@@ -515,6 +512,12 @@ fun SettingSwitchRow(
         Switch(
             checked = checked, 
             onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = MaterialTheme.colorScheme.surface,
+                checkedTrackColor = MaterialTheme.colorScheme.onSurface,
+                uncheckedThumbColor = MaterialTheme.colorScheme.onSurface.copy(0.4f),
+                uncheckedTrackColor = MaterialTheme.colorScheme.onSurface.copy(0.1f)
+            ),
             thumbContent = if (checked) {
                 { Icon(Icons.Default.Check, null, Modifier.size(SwitchDefaults.IconSize)) }
             } else null
@@ -528,6 +531,7 @@ fun SettingClickableRow(
     title: String,
     subtitle: String,
     textScale: Float,
+    trailingContent: @Composable (() -> Unit)? = null,
     onClick: () -> Unit
 ) {
     Row(
@@ -539,11 +543,11 @@ fun SettingClickableRow(
     ) {
         Surface(
             shape = RoundedCornerShape(12.dp),
-            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
             modifier = Modifier.size(42.dp)
         ) {
             Box(contentAlignment = Alignment.Center) {
-                Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                Icon(icon, null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(22.dp))
             }
         }
         Spacer(modifier = Modifier.width(16.dp))
@@ -551,12 +555,16 @@ fun SettingClickableRow(
             Text(title, fontWeight = FontWeight.Bold, fontSize = (16 * textScale).sp)
             Text(subtitle, fontSize = (12 * textScale).sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Icon(
-            Icons.Default.ChevronRight,
-            contentDescription = null, 
-            tint = MaterialTheme.colorScheme.outlineVariant,
-            modifier = Modifier.size(20.dp)
-        )
+        if (trailingContent != null) {
+            trailingContent()
+        } else {
+            Icon(
+                Icons.Default.ChevronRight,
+                contentDescription = null, 
+                tint = MaterialTheme.colorScheme.outline,
+                modifier = Modifier.size(20.dp)
+            )
+        }
     }
 }
 
@@ -564,10 +572,10 @@ fun SettingClickableRow(
 fun LogOutButton(textScale: Float, onClick: () -> Unit) {
     Button(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth().height(56.dp),
+        modifier = Modifier.fillMaxWidth().height(56.dp).border(1.dp, MaterialTheme.colorScheme.error.copy(0.3f), RoundedCornerShape(16.dp)),
         shape = RoundedCornerShape(16.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f),
+            containerColor = Color.Transparent,
             contentColor = MaterialTheme.colorScheme.error
         ),
         elevation = ButtonDefaults.buttonElevation(0.dp)

@@ -173,8 +173,8 @@ fun SignupScreen(
                 shape = RoundedCornerShape(16.dp),
                 enabled = !isLoading && email.isNotBlank() && password.isNotBlank(),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = Color.Black
+                    containerColor = MaterialTheme.colorScheme.onSurface,
+                    contentColor = MaterialTheme.colorScheme.surface
                 )
             ) {
                 if (isLoading) {
@@ -187,7 +187,7 @@ fun SignupScreen(
             Spacer(modifier = Modifier.height(16.dp))
             
             TextButton(onClick = onNavigateToLogin) {
-                Text("Already have an account? Login", color = MaterialTheme.colorScheme.primary)
+                Text("Already have an account? Login", color = MaterialTheme.colorScheme.onSurface)
             }
             
             Spacer(modifier = Modifier.height(40.dp))

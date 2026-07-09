@@ -60,11 +60,12 @@ fun CalendarScreen(viewModel: TimerViewModel) {
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showBottomSheet = true },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = Color.Black,
-                shape = CircleShape
+                containerColor = MaterialTheme.colorScheme.onSurface,
+                contentColor = MaterialTheme.colorScheme.surface,
+                shape = CircleShape,
+                elevation = FloatingActionButtonDefaults.elevation(8.dp)
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Add Event")
+                Icon(Icons.Default.Add, contentDescription = "Add Event", modifier = Modifier.size(32.dp))
             }
         },
         containerColor = MaterialTheme.colorScheme.background
@@ -77,12 +78,12 @@ fun CalendarScreen(viewModel: TimerViewModel) {
         ) {
             // Month Navigation Header
             Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = { viewModel.previousMonth() }) {
-                    Icon(Icons.Default.ChevronLeft, contentDescription = "Previous Month", tint = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.Default.ChevronLeft, contentDescription = "Previous Month", tint = MaterialTheme.colorScheme.onSurface)
                 }
                 
                 AnimatedContent(
@@ -98,13 +99,14 @@ fun CalendarScreen(viewModel: TimerViewModel) {
                     Text(
                         text = "${targetMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault()).uppercase()} ${targetMonth.year}",
                         style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        fontWeight = FontWeight.Black,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        letterSpacing = 1.sp
                     )
                 }
 
                 IconButton(onClick = { viewModel.nextMonth() }) {
-                    Icon(Icons.Default.ChevronRight, contentDescription = "Next Month", tint = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.Default.ChevronRight, contentDescription = "Next Month", tint = MaterialTheme.colorScheme.onSurface)
                 }
             }
 
@@ -143,8 +145,8 @@ fun CalendarScreen(viewModel: TimerViewModel) {
                             text = if (selectedDate == LocalDate.now()) "UPCOMING TODAY" else "EVENTS ON ${selectedDate.dayOfMonth} ${selectedDate.month.getDisplayName(TextStyle.SHORT, Locale.getDefault()).uppercase()}",
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.Black,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(top = 8.dp)
+                            color = MaterialTheme.colorScheme.onBackground,
+                            modifier = Modifier.padding(top = 8.dp, start = 4.dp)
                         )
                     }
 
@@ -165,8 +167,8 @@ fun CalendarScreen(viewModel: TimerViewModel) {
                             "TIMELINE ACTIVITY",
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.Black,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(bottom = 8.dp)
+                            color = MaterialTheme.colorScheme.onBackground,
+                            modifier = Modifier.padding(bottom = 8.dp, start = 4.dp)
                         )
                     }
 
@@ -202,11 +204,20 @@ fun CalendarScreen(viewModel: TimerViewModel) {
                                 .fillMaxWidth(),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                "No events or activity yet",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
-                            )
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    Icons.Default.EventNote,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(48.dp),
+                                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    "No events or activity yet",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                                )
+                            }
                         }
                     }
                 }
@@ -243,18 +254,20 @@ fun CalendarGrid(
                 Text(
                     text = day,
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                    fontWeight = FontWeight.Bold,
                     modifier = Modifier.width(40.dp),
                     textAlign = TextAlign.Center
                 )
             }
         }
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(12.dp))
         
         LazyVerticalGrid(
             columns = GridCells.Fixed(7),
-            modifier = Modifier.height(260.dp),
-            userScrollEnabled = false
+            modifier = Modifier.height(280.dp),
+            userScrollEnabled = false,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(firstDayOfWeek) {
                 Box(modifier = Modifier.aspectRatio(1f))
@@ -265,33 +278,28 @@ fun CalendarGrid(
                 val date = month.atDay(day)
                 val isSelected = date == selectedDate
                 val isToday = date == LocalDate.now()
-                val primaryColor = MaterialTheme.colorScheme.primary
+                val onSurfaceColor = MaterialTheme.colorScheme.onSurface
 
                 Box(
                     modifier = Modifier
                         .aspectRatio(1f)
-                        .padding(4.dp)
+                        .padding(2.dp)
                         .clip(CircleShape)
                         .clickable { onDateSelected(date) }
                         .then(
                             if (isSelected) {
-                                Modifier.drawBehind {
-                                    drawCircle(
-                                        color = primaryColor,
-                                        radius = size.minDimension / 2.2f
-                                    )
-                                }
+                                Modifier.background(onSurfaceColor)
                             } else if (isToday) {
-                                Modifier.border(1.dp, primaryColor.copy(alpha = 0.5f), CircleShape)
+                                Modifier.border(1.dp, onSurfaceColor.copy(alpha = 0.3f), CircleShape)
                             } else Modifier
                         ),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = day.toString(),
-                        color = if (isSelected) Color.Black else MaterialTheme.colorScheme.onSurface,
-                        fontWeight = if (isSelected || isToday) FontWeight.Bold else FontWeight.Normal,
-                        fontSize = 14.sp
+                        color = if (isSelected) MaterialTheme.colorScheme.surface else onSurfaceColor,
+                        fontWeight = if (isSelected || isToday) FontWeight.Black else FontWeight.Medium,
+                        fontSize = 15.sp
                     )
                 }
             }
@@ -367,16 +375,13 @@ fun EventCard(event: Event, onToggleDone: () -> Unit) {
                 modifier = Modifier
                     .size(48.dp)
                     .clip(RoundedCornerShape(16.dp))
-                    .background(
-                        if (event.isDone) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
-                        else MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-                    ),
+                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = if (event.isDone) Icons.Default.CheckCircle else Icons.Default.Event,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
+                    tint = if (event.isDone) MaterialTheme.colorScheme.onSurface.copy(0.4f) else MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.size(24.dp)
                 )
             }
@@ -404,7 +409,7 @@ fun EventCard(event: Event, onToggleDone: () -> Unit) {
             Text(
                 text = event.time,
                 style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.Black,
                 modifier = Modifier.alpha(alpha)
             )
@@ -507,7 +512,7 @@ fun AddEventBottomSheet(
                 "NEW EVENT - ${selectedDate.dayOfMonth} ${selectedDate.month.getDisplayName(TextStyle.SHORT, Locale.getDefault())}",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.ExtraBold,
-                color = MaterialTheme.colorScheme.primary
+                color = MaterialTheme.colorScheme.onSurface
             )
 
             OutlinedTextField(
@@ -516,8 +521,8 @@ fun AddEventBottomSheet(
                 label = { Text("Event Title") },
                 modifier = Modifier.fillMaxWidth(),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    cursorColor = MaterialTheme.colorScheme.primary
+                    focusedBorderColor = MaterialTheme.colorScheme.onSurface,
+                    cursorColor = MaterialTheme.colorScheme.onSurface
                 )
             )
 
@@ -561,14 +566,14 @@ fun AddEventBottomSheet(
                     .height(56.dp),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = Color.Black
+                    containerColor = MaterialTheme.colorScheme.onSurface,
+                    contentColor = MaterialTheme.colorScheme.surface
                 ),
                 enabled = !isSaving
             ) {
                 AnimatedContent(targetState = isSaving, label = "SaveAnimation") { saving ->
                     if (saving) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.Black, strokeWidth = 2.dp)
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.surface, strokeWidth = 2.dp)
                     } else {
                         Text("SAVE EVENT", fontWeight = FontWeight.Bold)
                     }

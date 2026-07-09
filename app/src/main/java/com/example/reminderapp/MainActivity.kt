@@ -12,10 +12,14 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -24,6 +28,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -47,13 +52,13 @@ import com.example.reminderapp.auth.SignupScreen
 import com.example.reminderapp.data.AppDatabase
 import com.example.reminderapp.pomodoro.FocusTimerScreen
 import com.example.reminderapp.reminders.HomeScreen
+import com.example.reminderapp.settings.ProfileScreen
 import com.example.reminderapp.settings.SettingScreen
 import com.example.reminderapp.settings.SettingsViewModel
 import com.example.reminderapp.stopwatch.StopwatchAndTimerScreen
 import com.example.reminderapp.ui.screens.CalendarScreen
 import com.example.reminderapp.ui.theme.AppTheme
 import com.google.firebase.FirebaseApp
-import com.google.firebase.auth.FirebaseAuth
 
 class MainActivity : ComponentActivity() {
 
@@ -115,6 +120,7 @@ sealed class Screen(val route: String, val label: String, val icon: ImageVector)
     object Pomodoro : Screen("pomodoro", "Pomodoro", Icons.Default.Timelapse)
     object Stopwatch : Screen("stopwatch", "Stopwatch", Icons.Default.Timer)
     object Settings : Screen("settings", "Settings", Icons.Default.Settings)
+    object Profile : Screen("profile", "Profile", Icons.Default.Person)
     object Login : Screen("login", "Login", Icons.Default.Lock)
     object Signup : Screen("signup", "Signup", Icons.Default.PersonAdd)
 }
@@ -123,12 +129,13 @@ sealed class Screen(val route: String, val label: String, val icon: ImageVector)
 fun MainRoot(settingsViewModel: SettingsViewModel) {
     val authViewModel: AuthViewModel = viewModel()
     val currentUser by authViewModel.user.collectAsState()
+    val isGuest by authViewModel.isGuest.collectAsState()
     val navController = rememberNavController()
     
     val lockType by settingsViewModel.lockType.collectAsState()
     var isUnlocked by remember { mutableStateOf(lockType == "NONE") }
 
-    if (currentUser == null) {
+    if (currentUser == null && !isGuest) {
         NavHost(navController, startDestination = Screen.Login.route) {
             composable(Screen.Login.route) {
                 LoginScreen(
@@ -287,42 +294,42 @@ fun MainScreen(
 
     Scaffold(
         bottomBar = {
-            NavigationBar(
-                containerColor = MaterialTheme.colorScheme.background,
-                tonalElevation = 8.dp
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 20.dp),
+                shape = RoundedCornerShape(28.dp),
+                color = MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp),
+                tonalElevation = 8.dp,
+                shadowElevation = 10.dp
             ) {
-                val navBackStackEntry by navController.currentBackStackEntryAsState()
-                val currentDestination = navBackStackEntry?.destination
-                items.forEach { screen ->
-                    val selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
-                    val scale by animateFloatAsState(if (selected) 1.2f else 1f, label = "iconScale")
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceAround,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val navBackStackEntry by navController.currentBackStackEntryAsState()
+                    val currentDestination = navBackStackEntry?.destination
 
-                    NavigationBarItem(
-                        icon = {
-                            Icon(
-                                screen.icon,
-                                contentDescription = screen.label,
-                                modifier = Modifier
-                                    .size(24.dp)
-                                    .scale(scale),
-                                tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                            )
-                        },
-                        label = { Text(screen.label) },
-                        selected = selected,
-                        onClick = {
-                            navController.navigate(screen.route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
+                    items.forEach { screen ->
+                        val selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
+                        
+                        CustomNavItem(
+                            screen = screen,
+                            selected = selected,
+                            onClick = {
+                                navController.navigate(screen.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
                                 }
-                                launchSingleTop = true
-                                restoreState = true
                             }
-                        },
-                        colors = NavigationBarItemDefaults.colors(
-                            indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
                         )
-                    )
+                    }
                 }
             }
         }
@@ -348,9 +355,51 @@ fun MainScreen(
                 SettingScreen(
                     isDarkMode = isDarkMode, 
                     onDarkModeChange = onDarkModeChange,
-                    onLogout = onLogout
+                    onLogout = onLogout,
+                    onNavigateToProfile = { navController.navigate(Screen.Profile.route) }
                 )
             }
+            composable(Screen.Profile.route) {
+                ProfileScreen(onBack = { navController.popBackStack() })
+            }
         }
+    }
+}
+
+@Composable
+fun CustomNavItem(
+    screen: Screen,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val contentColor by animateColorAsState(
+        targetValue = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(0.4f),
+        label = "color"
+    )
+    val containerColor by animateColorAsState(
+        targetValue = if (selected) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f) else Color.Transparent,
+        label = "containerColor"
+    )
+
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(containerColor)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = ripple(bounded = true, color = MaterialTheme.colorScheme.onSurface),
+                onClick = onClick
+            )
+            .padding(16.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = screen.icon,
+            contentDescription = screen.label,
+            tint = contentColor,
+            modifier = Modifier
+                .size(26.dp)
+                .scale(if (selected) 1.2f else 1f)
+        )
     }
 }
